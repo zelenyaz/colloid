@@ -4,13 +4,13 @@
 # Make sure to check if THP is enabled or not
 
 config=$1
-# gups_path=/home/sosp24ae/colloid/apps/gups
-mio_path=/home/sosp24ae/mio
-record_path=/home/sosp24ae/colloid/colloid-stats
-stats_path=/home/sosp24ae/colloid-eval
-memeater_path=/home/sosp24ae/colloid/tpp/memeater
-kswapdrst_path=/home/sosp24ae/colloid/tpp/kswapdrst
-scripts_path=/home/sosp24ae/colloid/scripts
+# gups_path=/home/midhul/colloid/apps/gups
+mio_path=/home/midhul/mio
+record_path=/home/midhul/colloid/colloid-stats
+stats_path=/home/midhul/membw-eval
+memeater_path=/home/midhul/colloid/tpp/memeater
+kswapdrst_path=/home/midhul/colloid/tpp/kswapdrst
+scripts_path=/home/midhul/colloid/scripts
 local_numa=1
 local_size=32768
 # gups_workload=$2
@@ -114,6 +114,12 @@ pid_bpf=$!;
 
 cat /proc/vmstat > $stats_path/$config.before_vmstat.txt
 
+# Start CPU usage monitoring with sar
+sar_logfile="$stats_path/$config.sar.txt"
+sar -u -P ALL 1 > $sar_logfile 2>&1 &
+pid_sar=$!;
+all_pids+=($pid_sar);
+
 # run actual app
 echo "Running $config"
 "${args_after_double_dash[@]}" > $stats_path/$config.app.txt 2> $stats_path/$config.stderr.txt &
@@ -141,6 +147,13 @@ if [ $duration -gt 0 ]; then
         sleep 1;
     done;
 fi
+
+# Stop sar monitoring
+kill $pid_sar > /dev/null 2>&1;
+while kill -0 $pid_sar > /dev/null 2>&1; do
+    sleep 1;
+done;
+killall sar > /dev/null 2>&1;
 
 cat /proc/vmstat > $stats_path/$config.after_vmstat.txt
 

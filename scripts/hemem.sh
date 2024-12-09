@@ -4,17 +4,17 @@
 # Make sure /dev/dax devices are setup and HeMem + Hoard libraries are compiled
 # TODO: Make sure to run run_perf.sh script from hemem directory in background
 # Dump of command lines from example run
-# sudo LD_LIBRARY_PATH=/home/sosp24ae/hemem/src:/home/sosp24ae/hemem/Hoard/src LD_PRELOAD=/home/sosp24ae/hemem/src/libhemem.so ./gups-r 4
+# sudo LD_LIBRARY_PATH=/home/midhul/hemem/src:/home/midhul/hemem/Hoard/src LD_PRELOAD=/home/midhul/hemem/src/libhemem.so ./gups-r 4
 # sudo python3 -m mio ezzz --ant_cpus 19,23,27 --ant_num_cores 3 --ant_mem_numa 3 --ant stream --ant_writefrac 50 --ant_inst_size 64 --ant_duration 10000
 # sudo ./run_perf.sh
 
 config=$1
-# gups_path=/home/sosp24ae/colloid/apps/gups
-mio_path=/home/sosp24ae/mio
-record_path=/home/sosp24ae/colloid/colloid-stats
-stats_path=/home/sosp24ae/colloid-eval
-hemem_colloid_path="/home/sosp24ae/colloid/hemem"
-hemem_baseline_path="/home/sosp24ae/hemem"
+# gups_path=/home/midhul/colloid/apps/gups
+mio_path=/home/midhul/mio
+record_path=/home/midhul/colloid/colloid-stats
+stats_path=/home/midhul/membw-eval
+hemem_colloid_path="/home/midhul/colloid/hemem"
+hemem_baseline_path="/home/midhul/hemem"
 hemem_path=$hemem_colloid_path
 if [ -n "${HEMEM_BASELINE}" ]; then
     echo "Baseline HeMem";
@@ -98,6 +98,12 @@ if [ $delay_bg -eq 0 ]; then
     fi
 fi
 
+# Start CPU usage monitoring with sar
+sar_logfile="$stats_path/$config.sar.txt"
+sar -u -P ALL 1 > $sar_logfile 2>&1 &
+pid_sar=$!;
+all_pids+=($pid_sar);
+
 # run actual app
 echo "Running $config"
 LD_LIBRARY_PATH=$lib_path LD_PRELOAD=$hemem_lib "${args_after_double_dash[@]}" > $stats_path/$config.app.txt 2> $stats_path/$config.hemem.txt &
@@ -127,6 +133,13 @@ if [ $duration -gt 0 ]; then
 else
     wait $pid_app;
 fi
+
+# Stop sar monitoring
+kill $pid_sar > /dev/null 2>&1;
+while kill -0 $pid_sar > /dev/null 2>&1; do
+    sleep 1;
+done;
+killall sar > /dev/null 2>&1;
 
 head -n -1 /tmp/hemem-colloid.log > $stats_path/$config.hemem-colloid.log
 
