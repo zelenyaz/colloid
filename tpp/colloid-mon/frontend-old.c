@@ -8,7 +8,6 @@
 #include <linux/mm.h>
 //#include <linux/memory-tiers.h>
 #include <linux/delay.h>
-#include "backend/backend_iface.h"
 
 #define SPINPOLL // TODO: configure this
 #define SAMPLE_INTERVAL_MS 10 // Only used if SPINPOLL is not set
@@ -28,8 +27,23 @@ extern int colloid_nid_of_interest;
 #define MIN_LOCAL_LAT 15
 #define MIN_REMOTE_LAT 30
 
-#define NUM_TIERS 2
-#define NUM_COUNTERS 2
+// CHA counters are MSR-based.  
+//   The starting MSR address is 0x0E00 + 0x10*CHA
+//   	Offset 0 is Unit Control -- mostly un-needed
+//   	Offsets 1-4 are the Counter PerfEvtSel registers
+//   	Offset 5 is Filter0	-- selects state for LLC lookup event (and TID, if enabled by bit 19 of PerfEvtSel)
+//   	Offset 6 is Filter1 -- lots of filter bits, including opcode -- default if unused should be 0x03b, or 0x------33 if using opcode matching
+//   	Offset 7 is Unit Status
+//   	Offsets 8,9,A,B are the Counter count registers
+#define CHA_MSR_PMON_BASE 0x0E00L
+#define CHA_MSR_PMON_CTL_BASE 0x0E01L
+#define CHA_MSR_PMON_FILTER0_BASE 0x0E05L
+// #define CHA_MSR_PMON_FILTER1_BASE 0x0E06L // No FULERT1 on Icelake
+#define CHA_MSR_PMON_STATUS_BASE 0x0E07L
+#define CHA_MSR_PMON_CTR_BASE 0x0E08L
+
+#define NUM_CHA_BOXES 18 // There are 32 CHA boxes in icelake server. After the first 18 boxes, the couter offsets change.
+#define NUM_CHA_COUNTERS 4
 
 u64 smoothed_occ_local, smoothed_inserts_local;
 u64 smoothed_occ_remote, smoothed_inserts_remote;
@@ -43,8 +57,8 @@ struct work_struct poll_cha;
 DECLARE_DELAYED_WORK(poll_cha, thread_fun_poll_cha);
 #endif
 
-u64 cur_ctr_tsc[NUM_TIERS][NUM_COUNTERS], prev_ctr_tsc[NUM_TIERS][NUM_COUNTERS];
-u64 cur_ctr_val[NUM_TIERS][NUM_COUNTERS], prev_ctr_val[NUM_TIERS][NUM_COUNTERS];
+u64 cur_ctr_tsc[NUM_CHA_BOXES][NUM_CHA_COUNTERS], prev_ctr_tsc[NUM_CHA_BOXES][NUM_CHA_COUNTERS];
+u64 cur_ctr_val[NUM_CHA_BOXES][NUM_CHA_COUNTERS], prev_ctr_val[NUM_CHA_BOXES][NUM_CHA_COUNTERS];
 int terminate_mon;
 
 struct log_entry {
@@ -68,29 +82,59 @@ static inline __attribute__((always_inline)) unsigned long rdtscp(void)
 }
 
 static void poll_cha_init(void) {
-    int ret;
-    struct backend_config config;
+    int cha, ret;
+    u32 msr_num;
+    u64 msr_val;
+    for(cha = 0; cha < NUM_CHA_BOXES; cha++) {
+        msr_num = CHA_MSR_PMON_FILTER0_BASE + (0xE * cha); // Filter0
+        msr_val = 0x00000000; // default; no filtering
+        ret = wrmsr_on_cpu(CORE_MON, msr_num, msr_val & 0xFFFFFFFF, msr_val >> 32);
+        if(ret != 0) {
+            printk(KERN_ERR "wrmsr FILTER0 failed\n");
+            return;
+        }
 
-    config.core = CORE_MON;
+        // msr_num = CHA_MSR_PMON_FILTER1_BASE + (0xE * cha); // Filter1
+        // msr_val = (cha%2 == 0)?(0x40432):(0x40431); // Filter DRd of local/remote on even/odd CHA boxes
+        // ret = wrmsr_on_cpu(CORE_MON, msr_num, msr_val & 0xFFFFFFFF, msr_val >> 32);
+        // if(ret != 0) {
+        //     printk(KERN_ERR "wrmsr FILTER1 failed\n");
+        //     return;
+        // }
 
-    ret = backend_init(&config);
-    
-    if(ret != 0) {
-        printk(KERN_ERR "backend init failed\n");
-        return;
+        msr_num = CHA_MSR_PMON_CTL_BASE + (0xE * cha) + 0; // counter 0
+        msr_val = (cha%2==0)?(0x00c8168600400136):(0x00c8170600400136); // TOR Occupancy, DRd, Miss, local/remote on even/odd CHA boxes
+        ret = wrmsr_on_cpu(CORE_MON, msr_num, msr_val & 0xFFFFFFFF, msr_val >> 32);
+        if(ret != 0) {
+            printk(KERN_ERR "wrmsr COUNTER 0 failed\n");
+            return;
+        }
+
+        msr_num = CHA_MSR_PMON_CTL_BASE + (0xE * cha) + 1; // counter 1
+        msr_val = (cha%2==0)?(0x00c8168600400135):(0x00c8170600400135); // TOR Inserts, DRd, Miss, local/remote on even/odd CHA boxes
+        ret = wrmsr_on_cpu(CORE_MON, msr_num, msr_val & 0xFFFFFFFF, msr_val >> 32);
+        if(ret != 0) {
+            printk(KERN_ERR "wrmsr COUNTER 1 failed\n");
+            return;
+        }
+
+        msr_num = CHA_MSR_PMON_CTL_BASE + (0xE * cha) + 2; // counter 2
+        msr_val = 0x400000; // CLOCKTICKS
+        ret = wrmsr_on_cpu(CORE_MON, msr_num, msr_val & 0xFFFFFFFF, msr_val >> 32);
+        if(ret != 0) {
+            printk(KERN_ERR "wrmsr COUNTER 2 failed\n");
+            return;
+        }
     }
+    
 }
 
 static inline void sample_cha_ctr(int cha, int ctr) {
-    // cha: tier; ctr = 0 => occupancy, ctr = 1 => inserts
-    u64 val;
-    if(ctr == 0) {
-        val = backend_read_occupancy(cha);
-    } else {
-        val = backend_read_inserts(cha);
-    }
+    u32 msr_num, msr_high, msr_low;
+    msr_num = CHA_MSR_PMON_CTR_BASE + (0xE * cha) + ctr;    
+    rdmsr_on_cpu(CORE_MON, msr_num, &msr_low, &msr_high);
     prev_ctr_val[cha][ctr] = cur_ctr_val[cha][ctr];
-    cur_ctr_val[cha][ctr] = val;
+    cur_ctr_val[cha][ctr] = (((u64)msr_high) << 32) | msr_low;
     prev_ctr_tsc[cha][ctr] = cur_ctr_tsc[cha][ctr];
     cur_ctr_tsc[cha][ctr] = rdtscp();
 }
@@ -114,9 +158,10 @@ void thread_fun_poll_cha(struct work_struct *work) {
     u64 cur_lat_local, cur_lat_remote;
     
     while (budget) {
-        // read counters and update state
-        sample_cha_ctr(0, 0); // default tier occupancy
-        sample_cha_ctr(0, 1); // default tier inserts
+        // Sample counters and update state
+        // TODO: For starters using CHA0 for local and CHA1 for remote
+        sample_cha_ctr(0, 0); // CHA0 occupancy
+        sample_cha_ctr(0, 1); // CHA0 inserts
         sample_cha_ctr(1, 0);
         sample_cha_ctr(1, 1);
 
@@ -166,8 +211,8 @@ void thread_fun_poll_cha(struct work_struct *work) {
 
 static void init_mon_state(void) {
     int cha, ctr;
-    for(cha = 0; cha < NUM_TIERS; cha++) {
-        for(ctr = 0; ctr < NUM_COUNTERS; ctr++) {
+    for(cha = 0; cha < NUM_CHA_BOXES; cha++) {
+        for(ctr = 0; ctr < NUM_CHA_COUNTERS; ctr++) {
             cur_ctr_tsc[cha][ctr] = 0;
             cur_ctr_val[cha][ctr] = 0;
             sample_cha_ctr(cha, ctr);
