@@ -17,6 +17,7 @@
 #else
 #define EWMA_EXP 1
 #endif
+#define PRECISION 10 // bits
 
 extern int colloid_local_lat_gt_remote;
 extern int colloid_nid_of_interest;
@@ -25,8 +26,8 @@ extern int colloid_nid_of_interest;
 #define LOCAL_NUMA 1
 #define WORKER_BUDGET 1000000
 #define LOG_SIZE 10000
-#define MIN_LOCAL_LAT 15
-#define MIN_REMOTE_LAT 30
+#define MIN_LOCAL_LAT 100
+#define MIN_REMOTE_LAT 300
 
 #define NUM_TIERS 2
 #define NUM_COUNTERS 2
@@ -122,33 +123,24 @@ void thread_fun_poll_cha(struct work_struct *work) {
 
         cum_occ = cur_ctr_val[0][0] - prev_ctr_val[0][0];
         delta_tsc = cur_ctr_tsc[0][0] - prev_ctr_tsc[0][0];
-        cur_occ = (cum_occ << 20)/delta_tsc;
-        cur_inserts = (cur_ctr_val[0][1] - prev_ctr_val[0][1])<<10;
+        cur_occ = (cum_occ << PRECISION);
+        cur_inserts = ((cur_ctr_val[0][1] - prev_ctr_val[0][1])<<PRECISION);
         WRITE_ONCE(smoothed_occ_local, (cur_occ + ((1<<EWMA_EXP) - 1)*smoothed_occ_local)>>EWMA_EXP);
         WRITE_ONCE(smoothed_inserts_local, (cur_inserts + ((1<<EWMA_EXP) - 1)*smoothed_inserts_local)>>EWMA_EXP);
         cur_lat_local = (smoothed_inserts_local > 0)?(smoothed_occ_local/smoothed_inserts_local):(MIN_LOCAL_LAT);
         cur_lat_local = (cur_lat_local > MIN_LOCAL_LAT)?(cur_lat_local):(MIN_LOCAL_LAT);
         WRITE_ONCE(smoothed_lat_local, cur_lat_local);
-        // WRITE_ONCE(smoothed_lat_local, (cur_lat_local*1000 + 31*smoothed_lat_local)/32);
-        // log_buffer[log_idx].tsc = cur_ctr_tsc[0][0];
-        // log_buffer[log_idx].occ_local = cur_occ;
-        // log_buffer[log_idx].inserts_local = cur_inserts;
 
         cum_occ = cur_ctr_val[1][0] - prev_ctr_val[1][0];
         delta_tsc = cur_ctr_tsc[1][0] - prev_ctr_tsc[1][0];
-        cur_occ = (cum_occ << 20)/delta_tsc;
-        cur_inserts = (cur_ctr_val[1][1] - prev_ctr_val[1][1])<<10;
+        cur_occ = (cum_occ << PRECISION);
+        cur_inserts = ((cur_ctr_val[1][1] - prev_ctr_val[1][1])<<PRECISION);
         WRITE_ONCE(smoothed_occ_remote, (cur_occ + ((1<<EWMA_EXP) - 1)*smoothed_occ_remote)>>EWMA_EXP);
         WRITE_ONCE(smoothed_inserts_remote, (cur_inserts + ((1<<EWMA_EXP) - 1)*smoothed_inserts_remote)>>EWMA_EXP);
         cur_lat_remote = (smoothed_inserts_remote > 0)?(smoothed_occ_remote/smoothed_inserts_remote):(MIN_REMOTE_LAT);
         WRITE_ONCE(smoothed_lat_remote, (cur_lat_remote > MIN_REMOTE_LAT)?(cur_lat_remote):(MIN_REMOTE_LAT));
-        // log_buffer[log_idx].occ_remote = cur_occ;
-        // log_buffer[log_idx].inserts_remote = cur_inserts;
-        
-        // WRITE_ONCE(colloid_local_lat_gt_remote, (smoothed_occ_local > smoothed_occ_remote));
-        WRITE_ONCE(colloid_local_lat_gt_remote, (smoothed_lat_local > smoothed_lat_remote));
 
-        // log_idx = (log_idx+1)%LOG_SIZE;
+        WRITE_ONCE(colloid_local_lat_gt_remote, (smoothed_lat_local > smoothed_lat_remote));
 
         budget--;
     }
