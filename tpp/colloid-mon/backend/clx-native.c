@@ -26,6 +26,14 @@ int backend_init(struct backend_config* config) {
     int cha, ret;
     u32 msr_num;
     u64 msr_val;
+
+    if(!config) {
+        printk(KERN_ERR "clx-native: invalid backend_config passed\n");
+        return -1;
+    }
+
+    core_mon = config->core;
+
     for(cha = 0; cha < NUM_CHA_BOXES; cha++) {
         msr_num = CHA_MSR_PMON_FILTER0_BASE + (0x10 * cha); // Filter0
         msr_val = 0x00000000; // default; no filtering
