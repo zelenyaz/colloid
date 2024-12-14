@@ -3,11 +3,11 @@ KDIR    := /lib/modules/$(shell uname -r)/build
 KCONFIG_SCRIPTS := $(KDIR)/scripts/kconfig
 PWD := $(shell pwd)
 
-# Default parameters
-# Note: do not add whitespace after parameter values
-BACKEND ?= icx-native
-DEFAULT_TIER ?= local-dram
-ALTERNATE_TIER ?= remote-dram
+ifdef M
+include $(M)/config.mk
+else
+include $(PWD)/config.mk
+endif
 
 # Frontend
 colloid-mon-objs := frontend.o
