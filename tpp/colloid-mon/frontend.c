@@ -22,8 +22,8 @@
 extern int colloid_local_lat_gt_remote;
 extern int colloid_nid_of_interest;
 
-#define CORE_MON 63
-#define LOCAL_NUMA 1
+// #define CORE_MON 63
+// #define LOCAL_NUMA 1
 #define WORKER_BUDGET 1000000
 #define LOG_SIZE 10000
 #define MIN_LOCAL_LAT 100

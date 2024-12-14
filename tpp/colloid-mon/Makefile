@@ -63,6 +63,9 @@ else
 $(error Invalide alternate tier: $(TIER).)
 endif
 
+EXTRA_CFLAGS += -DCORE_MON=$(CORE_MON)
+EXTRA_CFLAGS += -DLOCAL_NUMA=$(DEFAULT_TIER_NUMA)
+
 all: 
 	$(MAKE) -C $(KDIR) M=${PWD} SUBDIRS=$(PWD) modules
 
