@@ -96,13 +96,13 @@ static inline void sample_cha_ctr(int cha, int ctr) {
     cur_ctr_tsc[cha][ctr] = rdtscp();
 }
 
-static void dump_log(void) {
-    int i;
-    pr_info("Dumping colloid mon log");
-    for(i = 0; i < LOG_SIZE; i++) {
-        printk("%llu %llu %llu %llu %llu\n", log_buffer[i].tsc, log_buffer[i].occ_local, log_buffer[i].inserts_local, log_buffer[i].occ_remote, log_buffer[i].inserts_remote);
-    }
-}
+// static void dump_log(void) {
+//     int i;
+//     pr_info("Dumping colloid mon log");
+//     for(i = 0; i < LOG_SIZE; i++) {
+//         printk("%llu %llu %llu %llu %llu\n", log_buffer[i].tsc, log_buffer[i].occ_local, log_buffer[i].inserts_local, log_buffer[i].occ_remote, log_buffer[i].inserts_remote);
+//     }
+// }
 
 void thread_fun_poll_cha(struct work_struct *work) {
     int cpu = CORE_MON;
@@ -170,6 +170,7 @@ static void init_mon_state(void) {
 
 static int colloidmon_init(void)
 {
+    int i;
     poll_cha_queue = alloc_workqueue("poll_cha_queue",  WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
     if (!poll_cha_queue) {
         printk(KERN_ERR "Failed to create CHA workqueue\n");
@@ -194,7 +195,6 @@ static int colloidmon_init(void)
 
     WRITE_ONCE(colloid_nid_of_interest, LOCAL_NUMA);
 
-    int i;
     for(i = 0; i < 5; i++) {
         msleep(1000);
         printk("%llu %llu\n", READ_ONCE(smoothed_occ_local), READ_ONCE(smoothed_occ_remote));
