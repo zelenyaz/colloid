@@ -78,9 +78,14 @@ sudo reboot
 
 #### Building colloid-mon kernel module
 
-In `colloid-mon/colloid-mon.c`, update `CORE_MON` to the core on which loaded latency measurement should be performed (this should ideally be a dedicated core). Also update `LOCAL_NUMA` to the NUMA node number corresponding to the default tier in your setup.
+Configure the module by updating `colloid-mon/config.mk`:
+* `BACKEND`: Different backends implement architecture-specific logic for measuring access latency. You need to select the right backend for your server architecture. Currently supported backends:
+  * `icx-native`: For Intel Icelake (3rd Gen Xeon)
+  * `clx-native`: For Intel Cascadelake (2nd Gen Xeon)
+* `DEFAULT_TIER_NUMA`: This should be set to the NUMA node number of the default tier
+* `CORE_MON`: This should be set to the core on which access latency measurement should be performed. IMPORTANT: This should be a dedicated core on the default tier NUMA node.
 
-The to compile simply run:
+The to compile, `cd` into `colloid-mon` directory, and simply run:
 
 ```
 make
