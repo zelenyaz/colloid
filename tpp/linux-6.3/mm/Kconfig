@@ -1204,4 +1204,31 @@ config LRU_GEN_STATS
 
 source "mm/damon/Kconfig"
 
+menu "Colloid NUMA Configuration"
+
+config COLLOID_OVERRIDE_FALLBACK
+    bool "Enable override fallback for Colloid"
+    default n
+    help
+      Enable or disable override for fallback NUMA order.
+      Say 'y' to enable and 'n' to disable.
+
+config COLLOID_DEFAULT_TIER_NUMA
+    int "Default NUMA tier for Colloid"
+    default 0
+    help
+      Specify the default NUMA tier for Colloid.
+	  Only used if COLLOID_OVERRIDE_FALLBACK is enabled.
+      Must be an integer.
+
+config COLLOID_ALTERNATE_TIER_NUMA
+    int "Alternate NUMA tier for Colloid"
+    default 1
+    help
+      Specify the alternate NUMA tier for Colloid.
+	  Only used if COLLOID_OVERRIDE_FALLBACK is enabled.
+      Must be an integer.
+
+endmenu
+
 endmenu

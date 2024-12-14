@@ -1,4 +1,4 @@
-# HeMem + colloid
+# TPP + colloid
 
 This directory contains implementation of [colloid](https://github.com/webglider/colloid/) on top of TPP.
 
@@ -46,6 +46,8 @@ vi .config
 CONFIG_LOCALVERSION="-colloid"
 ...
 ```
+
+If you are using a server with more than two sockets, then you may need to additionally update .config to override the default NUMA allocation fallback order. Please see [here](fallback.md) for instructions (if using a single or dual-socket server, then this is not necessary).
 
 Compile and install (update -j with number of cores you want to use):
 

@@ -1,0 +1,7 @@
+### Overriding NUMA fallback allocation order
+
+When the memory capacity of a NUMA node is exhausted, Linux tries to allocate memory from a different NUMA node based on a fallback order determined at boot time. If using a server with more than two sockets for tiered memory emulation, then the fallback order may need to be udpated. For example, say you have a 4-socket server with NUMA nodes 0,1,2,3, and you want to use NUMA node 3 as the default tier and NUMA node 2 as the alternate tier. Say the Linux default fallback order for NUMA node 3 is 0,1,2. We need to update this fallback order so that NUMA node 2 comes first (e.g., 2,0,1) to ensure that memory is allocated in the alternate tier NUMA node once default tier NUAM node capacity is exhausted.
+
+TPP+Colloid kernel provides a configuration option to automatically override the allocation fallback order to handle the above. For this, before building the kernel set `ONFIG_COLLOID_OVERRIDE_FALLBACK=y` in .config, and set `CONFIG_COLLOID_DEFAULT_TIER_NUMA` to the NUMA node number of the default tier, and `CONFIG_COLLOID_ALTERNATE_TIER_NUMA` to the NUMA node number of the alternate tier.
+
+After building and booting the kernel, you can verify that the fallback order is as desired using: `dmesg | grep -i fallback`.
