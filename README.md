@@ -19,7 +19,7 @@ Additionally, [`apps/`](apps) provides source code for benchmark applications, [
 We have tested colloid using a multi-socket server to emulate tiered memory hardware (since we currently do not have access to real CXL/HBM hardware). Our original implementations of colloid assumed the Intel Ice Lake architecture (3rd Generation Intel Xeon Scalable processor) for hardware counters to measure loaded latency. Similar counters are available on other generations of Intel processors (Cascade Lake, Sapphire Rapids) and recent AMD processors for different memory tiers (CXL, HBM). Porting colloid to these architectures should be relatively straightforward (documentation coming soon). Please do reach out if you are interested in testing colloid on other architectures/memory tiers. We would love to explore this.
 
 ### Update
-Colloid implementation on top of TPP has now been extended to support the following architectures:
+Colloid implementation on top of TPP has now been extended to support the following architectures (see `tpp/` for details):
 - Intel Ice Lake architecture (3rd Generation Intel Xeon Scalable processor)
 - Intel Cascade Lake architecture (3rd Generation Intel Xeon Scalable processor)
 - Intell Haswell (credits to Bijan Tabatabai @BijanT)
