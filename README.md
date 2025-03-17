@@ -22,7 +22,7 @@ We have tested colloid using a multi-socket server to emulate tiered memory hard
 Colloid implementation on top of TPP has now been extended to support the following architectures (see `tpp/` for details):
 - Intel Ice Lake architecture (3rd Generation Intel Xeon Scalable processor)
 - Intel Cascade Lake architecture (3rd Generation Intel Xeon Scalable processor)
-- Intell Haswell (credits to Bijan Tabatabai @BijanT)
+- Intel Haswell (credits to Bijan Tabatabai @BijanT)
 
 ## Contact
 Midhul Vuppalapati ([midhul@cs.cornell.edu](mailto:midhul@cs.cornell.edu))
